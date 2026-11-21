@@ -1,0 +1,13 @@
+{
+  "device_id": "CW-01",
+  "shift_id": "早班",
+  "rule_id": "K",
+  "initial_rule": {"revision_id": "J1", "scale": "1", "threshold": "10"},
+  "next_rule": {"revision_id": "J2", "scale": "2", "threshold": "10"},
+  "recordings": [
+    {"recording_id": "A", "revision_id": "J1", "codes": [-7, 11]},
+    {"recording_id": "B", "revision_id": "J2", "codes": [-5, 5]},
+    {"recording_id": "C", "revision_id": "J1", "codes": [3]}
+  ],
+  "discard": {"recording_id": "C", "reason": "夹具松脱"}
+}
