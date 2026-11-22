@@ -5,12 +5,14 @@ import sqlite3
 from tempfile import TemporaryDirectory
 import unittest
 
-from archive.intake import archive
+from archive.intake import archive, archive_live
 from archive.reports import ReportStore
 from archive.storage import open_station
 from handover.notes import HandoverNoteStore
+from live_fixture import ScheduledPort
 from maintenance.history import DiscardHistory
 from record.mode import DeviceMode, DeviceState
+from record.rulings import rulings_of
 from record.runs import RunBook, append, open as open_recording
 from record.seal import SealedOriginal, SealedStore, seal
 from record.source import RecordingSource
@@ -24,6 +26,9 @@ class ScheduledSource:
         self.before_read: Callable[[str], None] | None = None
         self.after_read: Callable[[SealedOriginal], SealedOriginal | None] | None = None
         self.reads: list[str] = []
+
+    def __getattr__(self, name):
+        return getattr(self.source, name)
 
     @property
     def device_id(self) -> str:
@@ -82,6 +87,18 @@ class StationRig:
 
     def archive(self, recording_id):
         return archive(self.source, self.reports, recording_id)
+
+    def live_source(self):
+        """Assemble a live port over the same device, originals and station."""
+        return ScheduledPort(
+            RecordingSource(self.device, self.originals, self._find_discard, live=True)
+        )
+
+    def archive_live(self, source, recording_id):
+        return archive_live(source, self.reports, recording_id)
+
+    def ruling_state(self, recording_id):
+        return rulings_of(self.device).state(recording_id)
 
     def holds_original(self, recording_id: str) -> bool:
         try:

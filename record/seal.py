@@ -28,6 +28,15 @@ class SealedStore:
             raise ValueError(f'recording {original.recording_id!r} is already sealed')
         self._originals[original.recording_id] = original
 
+    def release(self, recording_id: str) -> None:
+        """Drop the device-held waveform after the station acknowledged it.
+
+        Repeated releases for the same recording are accepted so a lost
+        acknowledgement can be replayed without recreating the original.
+        """
+        require_label(recording_id, 'recording id')
+        self._originals.pop(recording_id, None)
+
 
 def seal(book: RunBook, store: SealedStore, recording_id: str) -> SealedOriginal:
     recording = book.get_active(recording_id)

@@ -17,6 +17,8 @@ python3 -B -m demo --input samples/day.json
 python3 -B -m unittest discover -s tests -t . -p 'test_*.py'
 ```
 
+`python3 -B check_project.py` 除完整 unittest 回归外，还运行 `live_fixture` 的设备/站库联合核验（停机路径与不停采路径），任一失败返回非零。`python3 -B -m live_demo` 运行实际作废与实收链路并展示停源领取。
+
 演示创建独立的临时站库，停源后重开并输出实际 JSON。失败时向标准错误报告原因，退出码为 1。参数用法错误由 argparse 返回 2。
 
 ## 早班样例
@@ -37,6 +39,16 @@ python3 -B -m unittest discover -s tests -t . -p 'test_*.py'
 - `archive.intake.archive(source, reports, recording_id)` 仅在停机时受理。成功返回带 `report` 和 `receipt_id` 的结果，重投可复领。归档事务失败抛出 `ArchiveWriteError`，报告和首执均回滚。设备会话仍在线，原件可重读。
 - `maintenance.session.maintenance(device, entering)` 进入或退出维护。`maintenance.discard.discard(device, originals, history, recording_id, reason)` 核对已封和未签，登记具名原因。同原因返回原事实。`history.find(device_id, recording_id)` 可追溯原因。
 - `handover.issue.issue(reports, notes, shift_id, report_ids)` 签发交班单。它校验全部引用并按报告号固定顺序，以签发时的判级统计超限。空交班单的超限数为零。`handover.lookup.lookup(reports, notes, reference)` 根据首执返回归档结果，或根据交班号返回固定交班单。`reports.get_report(report_id)` 读取交班单引用的已签报告。停机后可用 `device.power_off()` 停源，历史查询使用站库连接。
+
+## 不停采裁决接口（LIVE.md）
+
+需要不停采作废的会话在开测前用 `live=True` 装配供件端口：`RecordingSource(device, originals, history.find, live=True)`。裁决信息保存在设备侧的 `record.rulings.RulingBook`（经 `rulings_of(device)` 取用），不查询活动的 SQLite 连接，站库关闭时同样可裁定；重开站库后用同一 `device`、`originals` 和新连接重新装配端口，已有裁决与确认继续有效。
+
+- `source.discard_live(recording_id, reason)` 仅在运行态受理已封测次，返回 `'discarded'` 或 `'claimed'`。首个成功作废的原因保持有效，重投复用设备结果，正在采的另一测次继续接纳原码。
+- `source.claim_archive(recording_id)` 在运行或停机态为已封测次请求独占归档资格。已作废返回 `None`，获准返回绑定设备号、测次号、班次、冻结规程和按原序原码的 `ArchiveClaim`，其 `matches(original)` 校验完整封件。已实收释放原件后同号仍可取得并核验原资格。
+- `source.confirm_archive(claim)` 接收站库实收确认，只确认本设备授出的相同资格，错绑抛 `ValueError`，未知身份抛 `KeyError`，可重投；确认后 `originals.get(recording_id)` 抛 `KeyError`。
+- `archive.intake.archive_live(source, reports, recording_id)` 在运行或停机态受理，返回 `('discarded', None)`、`('retry', None)` 或 `('signed', ArchiveResult)`。资格或原件错配抛 `ValueError` 且无新增成果；端口 `OSError` 与 SQLite 提交失败均为待重试；原码、出处、冻结规程、峰值、判级和首执同次提交后才向设备确认。已提交而确认失答时，重开重投复用同一首执，并用持久原件核对资格补交，不再向设备索取已释放波形。
+- 维护入口仍只在维护态受理：已获准归档（含待实收）的测次拒绝维护作废；维护先登记的废测镜像进设备裁决，恢复录制后继续阻止现场和归档绕过；现场先作废时维护入口同原因重投、异原因拒绝。原 `archive` 仍要求停机并遵守该会话的设备裁决。
 
 ## 数据与失败语义
 
